@@ -1,41 +1,38 @@
-import axios from "axios";
-import dotenv from "dotenv";
+// Bot Entry Point
 
-dotenv.config();
+import { config } from "./src/config.js";
+import { logger } from "./src/logger.js";
+import { getBotInfo } from "./src/api.js";
+import { startPolling } from "./src/polling.js";
 
-const TOKEN = process.env.BOT_TOKEN;
-const API = `https://api.telegram.org/bot${TOKEN}`;
-
-let offset = 0;
-
-console.log("🤖 Bot is listening...");
-
-async function poll() {
+async function startup() {
   try {
-    const res = await axios.get(`${API}/getUpdates`, {
-      params: { offset, timeout: 30 },
-    });
+    logger.info("Bot is starting up...");
 
-    for (const update of res.data.result) {
-      offset = update.update_id + 1;
+    logger.success("Configuration loaded");
 
-      if (update.message) {
-        const chatId = update.message.chat.id;
-        const text = update.message.text;
+    logger.busy("Checking Telegram API connection...");
+    const botInfo = await getBotInfo();
 
-        console.log("📩", text);
-
-        await axios.post(`${API}/sendMessage`, {
-          chat_id: chatId,
-          text: `You said: ${text}`,
-        });
-      }
+    if (!botInfo) {
+      logger.error("Could not connect to Telegram API");
+      logger.error("Please verify your BOT_TOKEN is correct");
+      process.exit(1);
     }
-  } catch (err) {
-    console.error("❌", err.response?.data || err.message);
-  }
 
-  setTimeout(poll, 1000);
+    logger.success(`Connected! Bot: @${botInfo.username} (ID: ${botInfo.id})`);
+
+    logger.info("");
+    logger.info("Bot is listening for messages...");
+    logger.info("Send it a message or photo to get started!");
+    logger.info("");
+
+    startPolling();
+  } catch (err) {
+    logger.error(`Startup failed: ${err.message}`);
+    process.exit(1);
+  }
 }
 
-poll();
+// Start the bot
+startup();
